@@ -1,4 +1,4 @@
-import { GoogleSpreadsheet } from "google-spreadsheet";
+import { GoogleSpreadsheet, GoogleSpreadsheetRow } from "google-spreadsheet";
 import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
 import fs from "fs";
@@ -33,15 +33,59 @@ const doc = new GoogleSpreadsheet(sheetId, creds);
 async function accessSpreadsheet() {
   try {
     await doc.loadInfo();
+    const typesSheet = doc.sheetsByTitle["Types"];
+    if (!typesSheet) {
+      throw new Error("Types sheet not found in the spreadsheet.");
+    }
+    const typesRows = await typesSheet.getRows();
+
+    interface EnumTypes {
+      "Error Type": Set<string>;
+      "Log Level": Set<string>;
+      Component: Set<string>;
+      "User Impact": Set<string>;
+    }
+
+    interface SpreadsheetRow
+      extends GoogleSpreadsheetRow<Record<string, any>> {}
+
+    let enumsOutput = "";
+    const enumTypes: EnumTypes = {
+      "Error Type": new Set<string>(),
+      "Log Level": new Set<string>(),
+      Component: new Set<string>(),
+      "User Impact": new Set<string>(),
+    };
+
+    typesRows.forEach((row: SpreadsheetRow) => {
+      Object.keys(enumTypes).forEach((key) => {
+        const value = row.get(key);
+        if (typeof value === "string") {
+          enumTypes[key as keyof EnumTypes].add(value);
+        }
+      });
+    });
+
+    Object.keys(enumTypes).forEach((type) => {
+      enumsOutput += `enum ${type.replace(/\s+/g, "")} { `;
+      enumsOutput += Array.from(enumTypes[type as keyof EnumTypes])
+        .filter((value) => value.trim() !== "")
+        .map((value) => {
+          const enumName = value.replace(/[\s-]+/g, "");
+          return `${enumName} = "${value}"`;
+        })
+        .join(", ");
+      enumsOutput += " }\n";
+    });
+
     const sheet = doc.sheetsByIndex[config.sheetIndex || 0];
+    if (!sheet) {
+      throw new Error("Main data sheet not found in the spreadsheet.");
+    }
     const rows = await sheet.getRows();
 
     let tsOutput = `// Auto-generated error definitions\n\n`;
-
-    tsOutput += `enum ErrorType { Validation = "Validation", Network = "Network", Database = "Database", Timeout = "Timeout", HTTP = "HTTP", Authentication = "Authentication", Authorization = "Authorization", Resource = "Resource", Dependency = "Dependency", Configuration = "Configuration" }\n`;
-    tsOutput += `enum LogLevel { INFO = "INFO", WARN = "WARN", ERROR = "ERROR" }\n`;
-    tsOutput += `enum Component { Frontend = "Frontend", Backend = "Backend", Database = "Database", APIGateway = "API Gateway", Microservice = "Microservice", ThirdPartyService = "Third-party Service" }\n`;
-    tsOutput += `enum UserImpact { Low = "Low", Medium = "Medium", High = "High" }\n\n`;
+    tsOutput += enumsOutput;
 
     tsOutput += `export namespace ErrorDefinitions {\n`;
 
