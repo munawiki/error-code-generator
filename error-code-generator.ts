@@ -3,6 +3,7 @@ import { JWT } from "google-auth-library";
 import dotenv from "dotenv";
 import fs from "fs";
 import { logger } from "./logger";
+import { config } from "./config";
 
 dotenv.config();
 
@@ -32,7 +33,7 @@ const doc = new GoogleSpreadsheet(sheetId, creds);
 async function accessSpreadsheet() {
   try {
     await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
+    const sheet = doc.sheetsByIndex[config.sheetIndex || 0];
     const rows = await sheet.getRows();
 
     let tsOutput = `// Auto-generated error definitions\n\n`;
@@ -64,7 +65,7 @@ async function accessSpreadsheet() {
 
     tsOutput += `}\n`;
 
-    fs.writeFileSync("dist/errors.ts", tsOutput);
+    fs.writeFileSync(config.outputPath || "dist/errors.ts", tsOutput);
     logger.info(
       "Error definitions successfully generated and saved to errors.ts"
     );
