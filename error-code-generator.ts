@@ -64,7 +64,7 @@ async function accessSpreadsheet() {
 
     tsOutput += `}\n`;
 
-    fs.writeFileSync("errors.ts", tsOutput);
+    fs.writeFileSync("dist/errors.ts", tsOutput);
     logger.info(
       "Error definitions successfully generated and saved to errors.ts"
     );
